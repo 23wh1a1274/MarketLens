@@ -31,3 +31,7 @@ class User(Base):
         default=datetime.utcnow,
         nullable=False,
     )
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
