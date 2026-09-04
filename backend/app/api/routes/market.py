@@ -4,7 +4,11 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.market_snapshot import MarketSnapshot
 from app.services.market_data import get_stock_snapshot
-from app.services.market_analysis import get_average_volume
+from app.services.market_analysis import (
+    get_average_volume,
+    get_historical_prices,
+    calculate_historical_volatility,
+)
 from app.services.event_service import create_market_event
 
 router = APIRouter(
@@ -85,8 +89,17 @@ def analyze_stock(
 
     # Temporary volatility values.
     # We'll replace these with calculated historical volatility next.
-    current_volatility = 0.0
-    normal_volatility = 0.0
+    prices = get_historical_prices(
+    db,
+    symbol,
+    limit=20,
+    )
+
+    current_volatility = calculate_historical_volatility(
+        prices
+    )
+
+    normal_volatility = current_volatility
 
     event = create_market_event(
         db=db,
