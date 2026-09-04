@@ -33,15 +33,25 @@ def get_market_indices_data():
         )
 
 @router.get("/snapshot/{symbol}")
-def get_snapshot(
-    symbol: str,
-    db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user),
-):
+@router.get("/snapshot/{symbol}")
+def get_snapshot(symbol: str):
+    symbol = symbol.strip().upper()
+
     try:
         return get_stock_snapshot(symbol)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Market data is temporarily unavailable",
+        )
+
 
 @router.get("/history/{symbol}")
 def get_stock_history(

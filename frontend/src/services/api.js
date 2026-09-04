@@ -16,13 +16,19 @@ export async function apiFetch(endpoint, options = {}) {
     },
   });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
+if (!response.ok) {
+  const error = await response.json().catch(() => ({}));
 
-    throw new Error(
-      error.detail || `Request failed: ${response.status}`
-    );
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.href = "/";
+    throw new Error("Your session has expired. Please sign in again.");
   }
+
+  throw new Error(
+    error.detail || `Request failed: ${response.status}`
+  );
+}
 
   return response.json();
 }

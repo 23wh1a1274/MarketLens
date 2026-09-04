@@ -195,13 +195,24 @@ def get_stock_events(
 ):
     symbol = symbol.strip().upper()
 
-    events = (
-        db.query(MarketEvent)
-        .filter(MarketEvent.symbol == symbol)
-        .order_by(MarketEvent.timestamp.desc())
-        .limit(20)
-        .all()
+    watched = (
+        db.query(WatchlistItem)
+        .join(
+            Watchlist,
+            Watchlist.id == WatchlistItem.watchlist_id,
+        )
+        .filter(
+            Watchlist.user_id == user_id,
+            WatchlistItem.symbol == symbol.upper(),
+        )
+        .first()
     )
+
+    if not watched:
+        raise HTTPException(
+            status_code=404,
+            detail="Stock not found in your watchlist",
+        )
 
     return [
         {

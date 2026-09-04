@@ -2,421 +2,730 @@
 
 ## 1. Overview
 
-MarketLens is designed as a modular monolith with a React frontend and a
-Python/FastAPI backend.
+MarketLens is a full-stack web application designed to help users identify
+meaningful changes in the stocks they are monitoring.
 
-The main purpose of the backend is to collect market data, store snapshots,
-detect meaningful changes and expose the results through APIs.
+The application follows a **modular monolith architecture**.
 
-The frontend consumes these APIs and presents the information in a dashboard.
+The frontend, backend, database, market data service and background worker
+have clearly separated responsibilities while remaining part of one
+application.
 
-The high-level architecture is:
+---
+
+## 2. High-Level Architecture
 
 ```text
-                 +-------------------+
-                 |   Market Data     |
-                 |    yfinance       |
-                 +---------+---------+
-                           |
-                           v
-                 +-------------------+
-                 | Market Data Layer |
-                 +---------+---------+
-                           |
-                +----------+----------+
-                |                     |
-                v                     v
-       +----------------+     +----------------+
-       |   PostgreSQL   |     |     Redis      |
-       |    Snapshots   |     |    Caching     |
-       +-------+--------+     +----------------+
-               |
-               v
-       +----------------------+
-       | Change Detection     |
-       | & Scoring Engine     |
-       +----------+-----------+
-                  |
-                  v
-       +----------------------+
-       |    Market Events     |
-       +----------+-----------+
-                  |
-                  v
-       +----------------------+
-       |      FastAPI         |
-       |       APIs           |
-       +----------+-----------+
-                  |
-                  v
-       +----------------------+
-       |    React Frontend    |
-       +----------------------+
+                         User
+                          |
+                          v
+                  React Frontend
+                          |
+                          | HTTP / JSON
+                          v
+                    FastAPI API
+                          |
+          +---------------+---------------+
+          |               |               |
+          v               v               v
+     Authentication   Watchlists       Portfolio
+          |               |               |
+          +---------------+---------------+
+                          |
+                          v
+                  Market Data Service
+                          |
+                          v
+                     yfinance
+                          |
+                          v
+                   Market Snapshots
+                          |
+                          v
+                 Change Detection Engine
+                          |
+                          v
+                   Market Events
+                          |
+                          v
+                    PostgreSQL
+```
 
-# 
-## 2.FRONTEND ARCHITECTURE
+Redis is used as a supporting service for caching and can be extended for
+future background processing.
 
-frontend/
-└── src/
-    ├── components/
-    ├── pages/
-    ├── hooks/
+APScheduler is currently used to periodically trigger the market data worker.
+
+---
+
+## 3. Application Components
+
+### Frontend
+
+The frontend is built using React and JavaScript.
+
+Main responsibilities:
+
+- Display market information
+- Display watchlists
+- Display change events
+- Display the Attention Queue
+- Display Watchlist Health
+- Display stock charts
+- Display portfolio information
+- Handle user interaction
+- Communicate with the backend API
+
+Main frontend technologies:
+
+```text
+React
+JavaScript
+Vite
+Tailwind CSS
+TanStack Query
+Recharts
+Lucide React
+```
+
+---
+
+## 4. Backend
+
+The backend is built using FastAPI and Python.
+
+It exposes REST APIs used by the React frontend.
+
+Main responsibilities:
+
+- Authentication
+- User authorization
+- Watchlist management
+- Portfolio management
+- Market data access
+- Change detection
+- Market event generation
+- Historical data access
+
+Backend technologies:
+
+```text
+Python
+FastAPI
+SQLAlchemy
+Pydantic
+JWT
+```
+
+---
+
+## 5. Backend Module Structure
+
+```text
+backend/
+└── app/
+    ├── api/
+    │   └── routes/
+    │       ├── auth.py
+    │       ├── watchlists.py
+    │       ├── market.py
+    │       ├── events.py
+    │       └── portfolio.py
+    │
+    ├── core/
+    │   ├── config.py
+    │   └── security.py
+    │
+    ├── models/
+    │   ├── user.py
+    │   ├── watchlist.py
+    │   ├── watchlist_item.py
+    │   ├── market_snapshot.py
+    │   ├── market_event.py
+    │   ├── user_event.py
+    │   └── portfolio_holding.py
+    │
+    ├── schemas/
+    │
     ├── services/
-    ├── utils/
-    ├── App.jsx
-    └── main.jsx
+    │   ├── market_data.py
+    │   ├── market_analysis.py
+    │   ├── change_detection.py
+    │   ├── event_detector.py
+    │   └── event_service.py
+    │
+    ├── workers/
+    │   └── market_worker.py
+    │
+    ├── db/
+    │   └── database.py
+    │
+    └── main.py
+```
 
-Pages
+---
 
-Some important pages are:
+## 6. API Layer
 
-Dashboard
-Authentication
-Stock Detail
-Portfolio
+The API layer acts as the interface between the frontend and backend
+services.
 
-The Dashboard combines watchlist information, market indices, attention events
-and watchlist health.
+Main API groups:
 
-The Stock Detail page provides more detailed information about a selected
-stock.
+```text
+/api/auth
+/api/watchlists
+/api/market
+/api/events
+/api/portfolio
+```
 
-The Portfolio page handles the user's holdings.
+The API uses JSON for request and response data.
 
-Services
+FastAPI also provides automatic interactive API documentation through Swagger.
 
-API calls are kept inside the services folder instead of writing fetch calls
-directly throughout the UI.
+---
 
-For example:
+## 7. Authentication Flow
 
-services/
-├── api.js
-├── watchlists.js
-├── market.js
-└── events.js
+MarketLens uses JWT-based authentication.
 
-This makes it easier to change API behavior later.
-
-3. Backend Architecture
-
-The backend follows a layered structure.
-
-backend/app/
-│
-├── api/
-├── core/
-├── models/
-├── schemas/
-├── services/
-├── repositories/
-├── workers/
-├── db/
-└── main.py
-API Layer
-
-The API layer contains FastAPI routes.
-
-It handles:
-
-Request validation
-Authentication dependencies
-Calling services
-Returning responses
-
-Examples:
-
-api/routes/auth.py
-api/routes/watchlists.py
-api/routes/market.py
-api/routes/events.py
-api/routes/portfolio.py
-Models
-
-SQLAlchemy models represent database tables.
-
-Important models include:
-
+```text
 User
-Watchlist
-WatchlistItem
-MarketSnapshot
-MarketEvent
-UserEvent
-PortfolioHolding
-Schemas
+ |
+ | Register / Login
+ v
+FastAPI
+ |
+ | Validate credentials
+ v
+Password Hash
+ |
+ | Valid
+ v
+JWT Access Token
+ |
+ v
+Frontend
+ |
+ | Authorization: Bearer <token>
+ v
+Protected API
+```
 
-Pydantic schemas are used for validating incoming requests and structuring
-API responses.
+Passwords are stored as hashes rather than plain text.
 
-Services
+Protected endpoints identify the current user from the JWT token.
 
-Business logic is kept in services rather than putting everything inside the
-API routes.
+---
+
+## 8. Authorization
+
+Authentication determines who the user is.
+
+Authorization determines whether the user is allowed to access a resource.
+
+For user-specific resources, MarketLens checks ownership.
 
 For example:
 
-market_data.py
-market_analysis.py
-event_detector.py
-event_service.py
-
-
-4. Database Design
-
-The main relationships are:
-
+```text
 User
  |
  +---- Watchlist
- |       |
- |       +---- WatchlistItem
  |
- +---- PortfolioHolding
+ +---- Portfolio Holdings
  |
- +---- UserEvent
-           |
-           +---- MarketEvent
-                    |
-                    +---- MarketSnapshot
-Users
+ +---- User Events
+```
 
-Stores authentication information and the user's last checked time.
+A user should only be able to modify their own watchlists and portfolio
+holdings.
 
-Watchlists
+---
 
-Stores watchlists created by users.
+## 9. Watchlist Flow
 
-Watchlist Items
+```text
+User
+ |
+ v
+Create Watchlist
+ |
+ v
+Add Stock Symbol
+ |
+ v
+Validate Symbol
+ |
+ v
+Watchlist Item
+ |
+ v
+Market Data Worker
+```
 
-Connects stocks to a watchlist.
+Stock symbols are normalized to uppercase before being stored.
 
-Market Snapshots
+The backend also validates that market data exists for a stock before adding it
+to the watchlist.
 
-Stores historical market observations.
+---
 
-Instead of only storing the latest price, snapshots are stored so that the
-application can compare different points in time.
+## 10. Market Data Flow
 
-Market Events
+Market data is currently retrieved using yfinance.
 
-Stores detected changes.
+```text
+Market Data Provider
+        |
+        v
+Market Data Service
+        |
+        v
+Normalize Data
+        |
+        v
+Market Snapshot
+        |
+        v
+PostgreSQL
+```
+
+A snapshot contains information such as:
+
+- Symbol
+- Price
+- Open
+- High
+- Low
+- Previous close
+- Volume
+- Timestamp
+- Data source
+
+The market data service is separated from the rest of the application so that
+the provider can be replaced in the future.
+
+---
+
+## 11. Background Worker
+
+APScheduler periodically triggers the market data synchronization worker.
+
+```text
+APScheduler
+     |
+     | Every 15 minutes
+     v
+Market Worker
+     |
+     v
+Get watched stocks
+     |
+     v
+Fetch market data
+     |
+     v
+Store snapshot
+     |
+     v
+Analyze changes
+     |
+     v
+Create market event
+```
+
+The current implementation uses a simple scheduler because the project is an
+MVP.
+
+A distributed job queue can be introduced later if the workload requires it.
+
+---
+
+## 12. Change Detection
+
+The change detection engine is the main intelligence component of MarketLens.
+
+It analyzes:
+
+```text
+Price Movement
+Volume Anomaly
+Volatility
+Relative Performance
+```
+
+These signals are converted into severity values and combined into a score
+between 0 and 100.
+
+```text
+Market Snapshot
+       |
+       v
+Change Detection
+       |
+       +---- Price
+       |
+       +---- Volume
+       |
+       +---- Volatility
+       |
+       +---- Relative Performance
+       |
+       v
+Change Score
+       |
+       v
+Market Event
+```
+
+For the detailed algorithm, see:
+
+```text
+docs/change-detection.md
+```
+
+---
+
+## 13. Market Events
+
+A market event represents a meaningful change detected for a stock.
 
 An event contains information such as:
 
+```text
 Symbol
-Event type
+Event Type
 Severity
 Score
-Old value
-New value
+Old Value
+New Value
 Reasons
 Timestamp
+```
 
-The reasons are important because they allow the frontend to explain why an
-event received a particular score.
+Example:
 
-Portfolio Holdings
+```text
+Symbol: TCS
+Severity: Notable
+Score: 70.75
 
-Stores the user's holdings and average buying price.
+Reasons:
+- Stock outperformed NIFTY
+- Trading volume was unusually high
+- Price movement was significant
+```
 
-5. Market Data Flow
+The event is stored in PostgreSQL so it can be displayed later.
 
-The market worker periodically checks stocks that are present in user
-watchlists.
+---
 
-The basic flow is:
+## 14. Attention Queue
 
-Watchlist Stocks
+The Attention Queue provides a prioritized view of important events.
+
+```text
+Market Events
       |
       v
-Fetch Market Data
+Filter meaningful scores
       |
       v
-Store Snapshot
+Sort by score
       |
       v
-Compare With Previous Data
-      |
-      v
-Calculate Indicators
-      |
-      v
-Calculate Change Score
-      |
-      v
-Create Market Event
+Attention Queue
+```
 
-The current worker runs periodically using APScheduler.
+The current implementation prioritizes events with a score of 50 or higher.
 
-6. Change Detection
+This reduces the amount of information that the user needs to manually inspect.
 
-The change detection system uses multiple signals.
+---
 
-Price Change
+## 15. Since Last Checked
 
-The percentage change from the previous price is calculated.
+MarketLens stores the user's `last_seen_at` timestamp.
 
-Volume Anomaly
+```text
+User opens application
+        |
+        v
+Read last_seen_at
+        |
+        v
+Find events after that timestamp
+        |
+        v
+Since Last Checked
+```
 
-Current trading volume is compared with historical average volume.
+When the user marks events as seen, the timestamp is updated.
 
-For example, if the current volume is several times higher than the normal
-volume, it can contribute to a higher score.
+This allows the dashboard to focus on changes that happened since the user's
+previous check.
 
-Volatility
+---
 
-Historical price returns are used to estimate volatility.
+## 16. Portfolio Flow
 
-The current short-term volatility is compared with historical volatility.
+Portfolio holdings are associated with the authenticated user.
 
-Relative Performance
-
-The stock is also compared with:
-
-NIFTY 50
-Sector index when available
-
-This helps distinguish between:
-
-Entire market is falling
-
-and:
-
-One stock is falling much more than the market
-7. Meaningful Change Score
-
-The current score is calculated using:
-
-Price Change       40%
-Volume Anomaly     25%
-Volatility         15%
-Relative Performance 20%
-
-Conceptually:
-
-Score =
-    Price Score      × 0.40
-  + Volume Score     × 0.25
-  + Volatility Score × 0.15
-  + Relative Score   × 0.20
-
-The final score is limited to 100.
-
-The score is then used to classify an event.
-
-0 - 24     Normal
-25 - 49    Minor
-50 - 79    Notable
-80 - 100   Significant
-
-The exact thresholds may be adjusted as the system gets more historical data.
-
-8. Since Last Checked
-
-One of the main product ideas is to show changes since the user's previous
-visit.
-
-The user model stores:
-
-last_seen_at
-
-When the user requests events since their last check, the backend compares the
-event timestamp with this value.
-
-After the user marks the events as seen:
-
-last_seen_at = current time
-
-This means the next request only needs to look for newer events.
-
-9. Attention Queue
-
-The Attention Queue is basically a filtered and sorted list of important
-events.
-
-Currently, events with a score of 50 or higher are considered important enough
-for the queue.
-
-They are sorted using:
-
-Score DESC
-Timestamp DESC
-
-This gives the user a simple list of stocks that probably deserve more
-attention.
-
-10. Portfolio Flow
-
-Portfolio data follows a separate flow:
-
+```text
 User
  |
  v
 Add Holding
  |
- v
-Validate Stock
+ +---- Symbol
+ +---- Quantity
+ +---- Average Buy Price
  |
  v
-Store Quantity + Average Price
+Portfolio Holding
  |
  v
-Fetch Current Price
+Current Market Price
  |
  v
-Calculate Current Value
+Calculate
  |
- v
-Calculate P&L
+ +---- Invested Value
+ +---- Current Value
+ +---- Profit/Loss
+ +---- Return %
+```
 
-The backend calculates current portfolio values using the latest market data.
+Portfolio values are calculated using the current market price.
 
-11. Authentication
+---
 
-The application uses JWT authentication.
+## 17. Database Architecture
 
-The basic flow is:
+PostgreSQL stores persistent application data.
 
-Register
-   |
-   v
-Hash Password
-   |
-   v
-Store User
+Main relationships:
 
-For login:
+```text
+Users
+ |
+ +---- Watchlists
+ |       |
+ |       +---- Watchlist Items
+ |
+ +---- Portfolio Holdings
+ |
+ +---- User Events
 
-Email + Password
+Market Snapshots
+ |
+ +---- Market Events
+```
+
+Historical market snapshots are stored separately from market events.
+
+This allows the system to retain both:
+
+```text
+What the market value was
+```
+
+and:
+
+```text
+What the system considered meaningful
+```
+
+---
+
+## 18. Redis
+
+Redis is included as a supporting service.
+
+Potential uses include:
+
+- Caching frequently accessed market data
+- Reducing repeated market API requests
+- Storing short-lived data
+- Supporting future background processing
+
+The current MVP does not depend on Redis for core database persistence.
+
+---
+
+## 19. Error Handling
+
+The application handles common failure cases such as:
+
+- Invalid stock symbols
+- Missing market data
+- Invalid authentication tokens
+- Unauthorized resource access
+- Invalid request data
+- Temporary market data provider failures
+
+The API uses appropriate HTTP status codes where possible.
+
+For example:
+
+```text
+400 → Invalid request
+401 → Authentication required
+404 → Resource not found
+409 → Duplicate resource
+503 → Market data temporarily unavailable
+```
+
+---
+
+## 20. Security
+
+Security measures currently include:
+
+- JWT authentication
+- Password hashing
+- Protected API routes
+- User ownership checks
+- Environment variables for secrets
+- No hard-coded production credentials
+
+Sensitive configuration is stored in `.env`.
+
+The `.env` file should never be committed to the repository.
+
+Only `.env.example` should be included in the source repository.
+
+---
+
+## 21. Why Modular Monolith?
+
+MarketLens uses a modular monolith instead of microservices.
+
+The main reason is simplicity.
+
+The application has several logical components, but they currently do not need
+independent deployment or independent scaling.
+
+A modular monolith provides:
+
+- Easier development
+- Easier debugging
+- Simpler deployment
+- Lower operational complexity
+- Clear separation of responsibilities
+
+If the application grows significantly, individual modules can later be
+separated into independent services.
+
+---
+
+## 22. Scalability Considerations
+
+The current architecture can be extended in several ways.
+
+### Market Data
+
+A dedicated production market data provider can replace yfinance.
+
+### Caching
+
+Redis can cache frequently requested market information.
+
+### Background Processing
+
+APScheduler can later be replaced or supplemented with a distributed task
+queue if the number of tracked stocks increases significantly.
+
+### Database
+
+PostgreSQL can be optimized with:
+
+- Indexes
+- Query optimization
+- Snapshot retention policies
+- Historical data partitioning
+
+### API
+
+The FastAPI backend can be deployed with multiple workers when required.
+
+---
+
+## 23. Current Architecture Limitations
+
+The current system is designed as an MVP, so some production-level features
+are intentionally simplified.
+
+Current limitations include:
+
+- Development market data provider
+- Limited sector mapping
+- Simple background scheduler
+- No real-time WebSocket updates
+- Limited caching
+- No distributed task queue
+- Basic event deduplication
+- Portfolio represented as holdings rather than a full transaction ledger
+
+These choices keep the implementation manageable while leaving room for future
+improvements.
+
+---
+
+## 24. Deployment Architecture
+
+The intended production deployment can use separate services for the
+frontend, backend, database and Redis.
+
+```text
+                    Users
+                      |
+                      v
+                React / Vercel
+                      |
+                      v
+               FastAPI Backend
+                      |
+             +--------+--------+
+             |                 |
+             v                 v
+        PostgreSQL           Redis
+             |
+             v
+       Market Snapshots
+             |
+             v
+      Change Detection
+             |
+             v
+       Market Events
+```
+
+The exact hosting provider can be changed without changing the application
+architecture.
+
+---
+
+## 25. Core Design Principle
+
+The architecture is designed around one product principle:
+
+```text
+Raw Market Data
        |
        v
-Verify Password
+Meaningful Analysis
        |
        v
-Create JWT
+Prioritized Events
        |
        v
-Frontend stores token
+Useful User Action
+```
 
-The token is then sent with API requests using:
+MarketLens is therefore designed not just to display market data, but to
+reduce the amount of manual analysis required from the user.
 
-Authorization: Bearer <token>
-12. Background Processing
-
-APScheduler is currently used to periodically execute market synchronization.
-
-The current approach is intentionally simple.
-
-FastAPI Application
-       |
-       +---- APScheduler
-               |
-               v
-        Market Worker
-               |
-               v
-        Market Data Sync
-
-For a larger production system, this could later be moved into a separate
-worker process or queue system.
+> **What changed? How significant is it? Why should I care?**
