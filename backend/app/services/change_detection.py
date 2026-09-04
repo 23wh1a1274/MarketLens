@@ -128,3 +128,34 @@ def detect_volatility(
         "severity": severity,
         "is_anomaly": ratio >= 1.5,
     }
+
+def calculate_change_score(
+    price_severity: str,
+    volume_severity: str,
+    volatility_severity: str,
+) -> float:
+    severity_points = {
+        "normal": 0,
+        "minor": 25,
+        "notable": 50,
+        "significant": 75,
+    }
+
+    scores = [
+        severity_points.get(price_severity, 0),
+        severity_points.get(volume_severity, 0),
+        severity_points.get(volatility_severity, 0),
+    ]
+
+    return round(sum(scores) / len(scores), 2)
+
+
+def get_event_severity(score: float) -> str:
+    if score >= 75:
+        return "significant"
+    elif score >= 50:
+        return "notable"
+    elif score >= 25:
+        return "minor"
+    else:
+        return "normal"
