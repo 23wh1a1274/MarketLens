@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://marketlens-b9rw.onrender.com/";
 
 export async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem("token");

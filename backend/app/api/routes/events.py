@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -9,6 +9,7 @@ from app.models.user import User
 from app.core.security import get_current_user
 from app.models.watchlist import Watchlist
 from app.models.watchlist_item import WatchlistItem
+
 
 router = APIRouter(prefix="/api/events", tags=["Events"])
 
@@ -21,12 +22,20 @@ def get_events_since_last_check(
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
-        return {"events": [], "last_seen_at": None}
+        return {
+            "events": [],
+            "last_seen_at": None,
+        }
 
     watched_symbols = (
         db.query(WatchlistItem.symbol)
-        .join(Watchlist, Watchlist.id == WatchlistItem.watchlist_id)
-        .filter(Watchlist.user_id == user.id)
+        .join(
+            Watchlist,
+            Watchlist.id == WatchlistItem.watchlist_id,
+        )
+        .filter(
+            Watchlist.user_id == user.id
+        )
         .all()
     )
 
@@ -35,7 +44,7 @@ def get_events_since_last_check(
     if not symbols:
         return {
             "last_seen_at": user.last_seen_at,
-            "events": []
+            "events": [],
         }
 
     query = db.query(MarketEvent).filter(
@@ -46,6 +55,7 @@ def get_events_since_last_check(
         query = query.filter(
             MarketEvent.timestamp > user.last_seen_at
         )
+
     events = (
         query
         .order_by(MarketEvent.timestamp.desc())
@@ -69,6 +79,8 @@ def get_events_since_last_check(
             for event in events
         ],
     }
+
+
 @router.post("/mark-seen")
 def mark_events_seen(
     db: Session = Depends(get_db),
@@ -77,7 +89,9 @@ def mark_events_seen(
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
-        return {"message": "User not found"}
+        return {
+            "message": "User not found"
+        }
 
     user.last_seen_at = datetime.utcnow()
 
@@ -91,24 +105,30 @@ def mark_events_seen(
 
 def build_why_it_matters(event: MarketEvent) -> str:
     if event.severity == "significant":
-        return "This stock has experienced a significant market change and deserves immediate attention."
+        return (
+            "This stock has experienced a significant market "
+            "change and deserves immediate attention."
+        )
 
     if event.severity == "notable":
-        return "This stock has experienced a notable change compared with its normal market behavior."
+        return (
+            "This stock has experienced a notable change "
+            "compared with its normal market behavior."
+        )
 
     return "This stock has shown a market change worth monitoring."
+
 
 @router.get("/attention")
 def get_attention_queue(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user),
 ):
-    # Get symbols from the user's watchlists
     watched_symbols = (
         db.query(WatchlistItem.symbol)
         .join(
             Watchlist,
-            Watchlist.id == WatchlistItem.watchlist_id
+            Watchlist.id == WatchlistItem.watchlist_id,
         )
         .filter(
             Watchlist.user_id == user_id
@@ -124,7 +144,6 @@ def get_attention_queue(
             "count": 0,
         }
 
-    # Get only important events for watched stocks
     events = (
         db.query(MarketEvent)
         .filter(
@@ -140,20 +159,21 @@ def get_attention_queue(
 
     return {
         "events": [
-           {
-            "id": event.id,
-            "symbol": event.symbol,
-            "event_type": event.event_type,
-            "severity": event.severity,
-            "score": float(event.score),
-            "reasons": event.reasons,
-            "why_it_matters": build_why_it_matters(event),
-            "timestamp": event.timestamp,
-        }
+            {
+                "id": event.id,
+                "symbol": event.symbol,
+                "event_type": event.event_type,
+                "severity": event.severity,
+                "score": float(event.score),
+                "reasons": event.reasons,
+                "why_it_matters": build_why_it_matters(event),
+                "timestamp": event.timestamp,
+            }
             for event in events
         ],
         "count": len(events),
     }
+
 
 @router.get("/latest/{symbol}")
 def get_latest_event(
@@ -187,6 +207,7 @@ def get_latest_event(
         "timestamp": event.timestamp,
     }
 
+
 @router.get("/stock/{symbol}")
 def get_stock_events(
     symbol: str,
@@ -203,7 +224,7 @@ def get_stock_events(
         )
         .filter(
             Watchlist.user_id == user_id,
-            WatchlistItem.symbol == symbol.upper(),
+            WatchlistItem.symbol == symbol,
         )
         .first()
     )
@@ -213,6 +234,17 @@ def get_stock_events(
             status_code=404,
             detail="Stock not found in your watchlist",
         )
+
+    events = (
+        db.query(MarketEvent)
+        .filter(
+            MarketEvent.symbol == symbol
+        )
+        .order_by(
+            MarketEvent.timestamp.desc()
+        )
+        .all()
+    )
 
     return [
         {
@@ -227,6 +259,7 @@ def get_stock_events(
         for event in events
     ]
 
+
 @router.get("/watchlist-health")
 def get_watchlist_health(
     db: Session = Depends(get_db),
@@ -238,7 +271,9 @@ def get_watchlist_health(
             Watchlist,
             Watchlist.id == WatchlistItem.watchlist_id,
         )
-        .filter(Watchlist.user_id == user_id)
+        .filter(
+            Watchlist.user_id == user_id
+        )
         .all()
     )
 
@@ -259,8 +294,12 @@ def get_watchlist_health(
     for symbol in symbols:
         event = (
             db.query(MarketEvent)
-            .filter(MarketEvent.symbol == symbol)
-            .order_by(MarketEvent.timestamp.desc())
+            .filter(
+                MarketEvent.symbol == symbol
+            )
+            .order_by(
+                MarketEvent.timestamp.desc()
+            )
             .first()
         )
 
