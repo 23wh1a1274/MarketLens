@@ -7,6 +7,7 @@ from app.schemas.watchlist import WatchlistCreate, WatchlistResponse
 from app.core.security import get_current_user
 from app.models.watchlist_item import WatchlistItem
 from app.schemas.watchlist import StockAdd, StockResponse
+from app.services.market_data import get_stock_snapshot
 
 router = APIRouter(
     prefix="/api/watchlists",
@@ -93,6 +94,19 @@ def add_stock(
         )
 
     symbol = data.symbol
+
+    try:
+        get_stock_snapshot(symbol)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid or unsupported stock symbol: {symbol}",
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to verify stock symbol right now",
+        )
 
     # Prevent duplicate stocks
     existing_stock = (

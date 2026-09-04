@@ -17,3 +17,15 @@ export async function markEventsSeen() {
 export async function getLatestEvent(symbol) {
   return apiFetch(`/api/events/latest/${symbol}`);
 }
+
+export async function getStockEvents(symbol) {
+  return apiFetch(`/api/events/stock/${symbol}`);
+}
+
+export async function getWatchlistHealth() {
+  return apiFetch("/api/events/watchlist-health");
+}
+
+export async function getAttentionQueue() {
+  return apiFetch("/api/events/attention");
+}

@@ -150,6 +150,7 @@ def calculate_change_score(
     price_severity: str,
     volume_severity: str,
     volatility_severity: str,
+    relative_severity: str = "normal",
 ) -> float:
 
     severity_points = {
@@ -159,18 +160,34 @@ def calculate_change_score(
         "significant": 100,
     }
 
-    price_score = severity_points.get(price_severity, 0)
-    volume_score = severity_points.get(volume_severity, 0)
-    volatility_score = severity_points.get(volatility_severity, 0)
+    price_score = severity_points.get(
+        price_severity,
+        0,
+    )
+
+    volume_score = severity_points.get(
+        volume_severity,
+        0,
+    )
+
+    volatility_score = severity_points.get(
+        volatility_severity,
+        0,
+    )
+
+    relative_score = severity_points.get(
+        relative_severity,
+        0,
+    )
 
     score = (
-        price_score * 0.50
-        + volume_score * 0.30
-        + volatility_score * 0.20
+        price_score * 0.40
+        + volume_score * 0.25
+        + volatility_score * 0.15
+        + relative_score * 0.20
     )
 
     return round(min(score, 100), 2)
-
 
 def get_event_severity(score: float) -> str:
     if score >= 75:
@@ -182,3 +199,44 @@ def get_event_severity(score: float) -> str:
     else:
         return "normal"
 
+def detect_relative_performance(
+    market_relative: float,
+    sector_relative: float,
+) -> dict:
+
+    market_abs = abs(market_relative)
+    sector_abs = abs(sector_relative)
+
+    if market_abs >= 3 or sector_abs >= 3:
+        severity = "significant"
+    elif market_abs >= 2 or sector_abs >= 2:
+        severity = "notable"
+    elif market_abs >= 1 or sector_abs >= 1:
+        severity = "minor"
+    else:
+        severity = "normal"
+
+    reasons = []
+
+    if abs(market_relative) >= 1:
+        direction = "outperformed" if market_relative > 0 else "underperformed"
+
+        reasons.append(
+            f"Stock {direction} NIFTY by "
+            f"{abs(market_relative):.2f}%"
+        )
+
+    if abs(sector_relative) >= 1:
+        direction = "outperformed" if sector_relative > 0 else "underperformed"
+
+        reasons.append(
+            f"Stock {direction} its sector by "
+            f"{abs(sector_relative):.2f}%"
+        )
+
+    return {
+        "severity": severity,
+        "market_relative": round(market_relative, 2),
+        "sector_relative": round(sector_relative, 2),
+        "reasons": reasons,
+    }

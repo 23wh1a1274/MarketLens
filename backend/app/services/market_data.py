@@ -6,7 +6,15 @@ INDEX_SYMBOLS = {
     "NIFTY IT": "^CNXIT",
     "BANK NIFTY": "^NSEBANK",
 }
+SECTOR_INDEXES = {
+    "IT": "^CNXIT",
+    "BANK": "^NSEBANK",
+}
 
+STOCK_SECTORS = {
+    "TCS": "IT",
+    "INFY": "IT",
+}
 def get_stock_snapshot(symbol: str):
     symbol = symbol.strip().upper()
 
@@ -107,3 +115,93 @@ def get_market_indices():
         })
 
     return results
+
+def get_relative_market_data(symbol: str):
+    symbol = symbol.strip().upper()
+
+    stock_ticker = yf.Ticker(f"{symbol}.NS")
+
+    stock_history = stock_ticker.history(
+        period="2d",
+        interval="1d",
+    )
+
+    if len(stock_history) < 2:
+        return {
+            "stock_change": 0.0,
+            "nifty_change": 0.0,
+            "sector_change": 0.0,
+            "market_relative": 0.0,
+            "sector_relative": 0.0,
+        }
+
+    stock_current = float(stock_history.iloc[-1]["Close"])
+    stock_previous = float(stock_history.iloc[-2]["Close"])
+
+    stock_change = (
+        (stock_current - stock_previous)
+        / stock_previous
+    ) * 100
+
+    # NIFTY 50
+    nifty = yf.Ticker("^NSEI")
+    nifty_history = nifty.history(
+        period="2d",
+        interval="1d",
+    )
+
+    nifty_change = 0.0
+
+    if len(nifty_history) >= 2:
+        nifty_current = float(
+            nifty_history.iloc[-1]["Close"]
+        )
+        nifty_previous = float(
+            nifty_history.iloc[-2]["Close"]
+        )
+
+        nifty_change = (
+            (nifty_current - nifty_previous)
+            / nifty_previous
+        ) * 100
+
+    # Sector
+    sector_change = 0.0
+    sector = STOCK_SECTORS.get(symbol)
+
+    if sector:
+        sector_ticker = yf.Ticker(
+            SECTOR_INDEXES[sector]
+        )
+
+        sector_history = sector_ticker.history(
+            period="2d",
+            interval="1d",
+        )
+
+        if len(sector_history) >= 2:
+            sector_current = float(
+                sector_history.iloc[-1]["Close"]
+            )
+            sector_previous = float(
+                sector_history.iloc[-2]["Close"]
+            )
+
+            sector_change = (
+                (sector_current - sector_previous)
+                / sector_previous
+            ) * 100
+
+    return {
+        "stock_change": round(stock_change, 2),
+        "nifty_change": round(nifty_change, 2),
+        "sector_change": round(sector_change, 2),
+        "market_relative": round(
+            stock_change - nifty_change,
+            2,
+        ),
+        "sector_relative": round(
+            stock_change - sector_change,
+            2,
+        ),
+    }

@@ -14,7 +14,15 @@ import {
 import { useAttention } from "./hooks/useAttention";
 import { useEffect, useState } from "react";
 import Auth from "./pages/Auth";
-import { getLatestEvent } from "./services/events";
+import StockDetail from "./pages/StockDetail";
+import Portfolio from "./pages/Portfolio";
+import {
+  getLatestEvent,
+  getWatchlistHealth,
+  getAttentionQueue,
+  getEventsSinceLastCheck,
+  markEventsSeen,
+} from "./services/events";
 
 import {
   getStockSnapshot,
@@ -53,6 +61,13 @@ const [marketIndices, setMarketIndices] = useState([]);
 const [indicesLoading, setIndicesLoading] = useState(true);
 const [stockHistory, setStockHistory] = useState({});
 const [stockSignals, setStockSignals] = useState({});
+const [selectedStock, setSelectedStock] = useState(null);
+const [watchlistHealth, setWatchlistHealth] = useState(null);
+const [attentionQueue, setAttentionQueue] = useState(null);
+const [sinceLastCheck, setSinceLastCheck] = useState(null);
+const [showAllAttention, setShowAllAttention] = useState(false);
+const [searchSymbol, setSearchSymbol] = useState("");
+const [showPortfolio, setShowPortfolio] = useState(false);
 
 const [isAuthenticated, setIsAuthenticated] = useState(
       Boolean(localStorage.getItem("token"))
@@ -82,6 +97,55 @@ const [stockError, setStockError] = useState("");
 const [newSymbol, setNewSymbol] = useState("");
 const [marketData, setMarketData] = useState({});
 
+
+useEffect(() => {
+  async function loadSinceLastCheck() {
+    try {
+      const data = await getEventsSinceLastCheck();
+      setSinceLastCheck(data);
+    } catch (error) {
+      console.error(
+        "Failed to load since-last-check events:",
+        error
+      );
+    }
+  }
+
+  if (stocks.length > 0) {
+    loadSinceLastCheck();
+  }
+}, [stocks]);
+
+
+useEffect(() => {
+  async function loadAttentionQueue() {
+    try {
+      const data = await getAttentionQueue();
+      setAttentionQueue(data);
+    } catch (error) {
+      console.error("Failed to load attention queue:", error);
+    }
+  }
+
+  if (stocks.length > 0) {
+    loadAttentionQueue();
+  }
+}, [stocks]);
+
+useEffect(() => {
+  async function loadWatchlistHealth() {
+    try {
+      const data = await getWatchlistHealth();
+      setWatchlistHealth(data);
+    } catch (error) {
+      console.error("Failed to load watchlist health:", error);
+    }
+  }
+
+  if (stocks.length > 0) {
+    loadWatchlistHealth();
+  }
+}, [stocks]);
 
 useEffect(() => {
   async function loadWatchlist() {
@@ -215,6 +279,23 @@ async function handleRemoveStock(symbol) {
   }
 }
 
+if (selectedStock) {
+  return (
+    <StockDetail
+      symbol={selectedStock}
+      onBack={() => setSelectedStock(null)}
+    />
+  );
+}
+
+if (showPortfolio) {
+  return (
+    <Portfolio
+      onBack={() => setShowPortfolio(false)}
+    />
+  );
+}
+
   return (
     <div className="min-h-screen bg-[#fafafa] text-[#1f2937]">
 
@@ -240,11 +321,19 @@ async function handleRemoveStock(symbol) {
             <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5">
               <Search size={18} className="text-gray-400" />
 
-              <input
-                type="text"
-                placeholder="Search stocks, ETFs, companies..."
-                className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
-              />
+                  <input
+                    type="text"
+                    placeholder="Search stocks..."
+                    value={searchSymbol}
+                    onChange={(e) => setSearchSymbol(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && searchSymbol.trim()) {
+                        setSelectedStock(searchSymbol.trim());
+                        setSearchSymbol("");
+                      }
+                    }}
+                    className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
+                  />
 
               <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-400">
                 /
@@ -254,15 +343,27 @@ async function handleRemoveStock(symbol) {
 
           {/* Right */}
           <div className="flex items-center gap-5">
-            <button className="relative text-gray-500 hover:text-black">
+            <button
+              onClick={() =>
+                document
+                  .getElementById("attention")
+                  ?.scrollIntoView({ behavior: "smooth" })
+                  
+              }
+              className="relative text-gray-500 hover:text-black"
+            >
               <Bell size={20} />
 
               <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
             </button>
 
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100">
-              <User size={18} className="text-gray-600" />
-            </div>
+            <button
+                onClick={() => setShowPortfolio(true)}
+                title="Portfolio"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 transition hover:bg-gray-200"
+              >
+                <User size={18} className="text-gray-600" />
+              </button>
 
             <button
                 onClick={() => {
@@ -281,6 +382,7 @@ async function handleRemoveStock(symbol) {
 
       <div className="flex">
 
+        
         {/* Sidebar */}
         <aside className="hidden w-60 border-r border-gray-200 bg-white lg:block">
           <nav className="sticky top-16 p-4">
@@ -289,21 +391,35 @@ async function handleRemoveStock(symbol) {
               icon={<Home size={18} />}
               label="Overview"
               active
+              onClick={() =>
+                window.scrollTo({ top: 0, behavior: "smooth" })
+              }
             />
 
             <NavItem
               icon={<Star size={18} />}
               label="My Watchlist"
+              onClick={() =>
+                document
+                  .getElementById("watchlist")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
             />
 
             <NavItem
               icon={<TrendingUp size={18} />}
               label="Markets"
+              onClick={() =>
+                document
+                  .getElementById("markets")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
             />
 
             <NavItem
               icon={<Wallet size={18} />}
               label="Portfolio"
+              onClick={() => setShowPortfolio(true)}
             />
 
             <div className="my-6 border-t border-gray-100" />
@@ -315,6 +431,11 @@ async function handleRemoveStock(symbol) {
             <NavItem
               icon={<Star size={18} />}
               label="My Stocks"
+              onClick={() =>
+                document
+                  .getElementById("watchlist")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
             />
 
           </nav>
@@ -340,8 +461,81 @@ async function handleRemoveStock(symbol) {
               </p>
             </section>
 
+            {/* Since Last Check */}
+            {sinceLastCheck &&
+              sinceLastCheck.events?.length > 0 && (
+                <section className="mb-8">
+                  <div className="rounded-2xl border border-green-100 bg-green-50/50 p-6">
+                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                      <div>
+                        <p className="text-sm font-semibold text-green-700">
+                          Since you last checked
+                        </p>
+
+                        <h3 className="mt-1 text-xl font-semibold text-gray-900">
+                          {sinceLastCheck.events.length} meaningful{" "}
+                          {sinceLastCheck.events.length === 1
+                            ? "change"
+                            : "changes"}{" "}
+                          detected
+                        </h3>
+
+                        <p className="mt-1 text-sm text-gray-500">
+                          Here's what changed in your watchlist.
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={async () => {
+                          try {
+                            await markEventsSeen();
+                            setSinceLastCheck({
+                              ...sinceLastCheck,
+                              events: [],
+                            });
+                          } catch (error) {
+                            console.error(
+                              "Failed to mark events seen:",
+                              error
+                            );
+                          }
+                        }}
+                        className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                      >
+                        Mark as seen
+                      </button>
+                    </div>
+
+                    <div className="mt-5 space-y-2">
+                      {sinceLastCheck.events.slice(0, 5).map((event) => (
+                        <div
+                          key={event.id}
+                          onClick={() => setSelectedStock(event.symbol)}
+                          className="flex cursor-pointer items-center justify-between rounded-xl bg-white p-4 transition hover:shadow-sm"
+                        >
+                          <div>
+                            <p className="font-semibold">
+                              {event.symbol}
+                            </p>
+                            <p className="mt-1 text-sm text-gray-500">
+                              {event.severity.charAt(0).toUpperCase() +
+                                event.severity.slice(1)}{" "}
+                              change detected
+                            </p>
+                          </div>
+
+                          <span className="text-sm font-semibold text-gray-600">
+                            {event.score}/100
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              )}
+
             {/* Attention Card */}
-            <section className="mb-10">
+            <section id="attention" className="mb-10">
 
               <div className="mb-4 flex items-center justify-between">
                 <div>
@@ -354,9 +548,17 @@ async function handleRemoveStock(symbol) {
                   </p>
                 </div>
 
-                <button className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-black">
-                  View all
-                  <ChevronRight size={16} />
+                <button
+                  onClick={() => setShowAllAttention((current) => !current)}
+                  className="flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-black"
+                >
+                  {showAllAttention ? "Show less" : "View all"}
+                  <ChevronRight
+                    size={16}
+                    className={`transition-transform ${
+                      showAllAttention ? "rotate-90" : ""
+                    }`}
+                  />
                 </button>
               </div>
 
@@ -407,7 +609,10 @@ async function handleRemoveStock(symbol) {
                 ) : (
                   <div className="divide-y divide-gray-100">
 
-                    {attentionEvents.slice(0, 5).map((event) => (
+                    {(showAllAttention
+                      ? attentionEvents
+                      : attentionEvents.slice(0, 5)
+                    ).map((event) => (
                       <AttentionEvent
                         key={event.id}
                         event={event}
@@ -422,7 +627,7 @@ async function handleRemoveStock(symbol) {
             </section>
 
             {/* Market Overview */}
-            <section className="mb-10">
+            <section id="markets" className="mb-10">
 
               <div className="mb-4">
                 <h3 className="text-lg font-semibold">
@@ -463,8 +668,114 @@ async function handleRemoveStock(symbol) {
 
             </section>
 
+            {/* Watchlist Health */}
+            {watchlistHealth && (
+              <section className="mb-8">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold">
+                    Watchlist Health
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    A quick view of what needs your attention
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                    <p className="text-sm text-gray-500">
+                      Total stocks
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold">
+                      {watchlistHealth.total}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-red-100 bg-white p-5 shadow-sm">
+                    <p className="text-sm text-gray-500">
+                      Need attention
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-red-600">
+                      {watchlistHealth.attention}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      Score 50+
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-yellow-100 bg-white p-5 shadow-sm">
+                    <p className="text-sm text-gray-500">
+                      Minor changes
+                    </p>
+                    <p className="mt-2 text-3xl font-semibold text-yellow-600">
+                      {watchlistHealth.minor}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      Score 25–49
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Attention Queue */}
+            {attentionQueue && attentionQueue.count > 0 && (
+                <section className="mb-8">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold">
+                      Needs Your Attention
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      The most meaningful changes in your watchlist
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {attentionQueue.events.slice(0, 3).map((event) => (
+                      <div
+                        key={event.id}
+                        onClick={() => setSelectedStock(event.symbol)}
+                        className="cursor-pointer rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-gray-300 hover:shadow-md"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-semibold">
+                                {event.symbol}
+                              </span>
+
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                                  event.severity === "significant"
+                                    ? "bg-red-50 text-red-600"
+                                    : "bg-orange-50 text-orange-600"
+                                }`}
+                              >
+                                {event.severity}
+                              </span>
+                            </div>
+
+                            <p className="mt-2 text-sm text-gray-500">
+                              {event.why_it_matters}
+                            </p>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <p className="text-xl font-semibold">
+                              {event.score}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              / 100
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
             {/* Watchlist */}
-            <section>
+            <section id="watchlist">
 
               <div className="mb-4 flex items-end justify-between">
 
@@ -517,16 +828,17 @@ async function handleRemoveStock(symbol) {
                   )}
 
                   {stocks.map((stock) => (
-                    <StockCard
-                      key={stock.id}
-                      stock={{
-                        ...stock,
-                        ...(marketData[stock.symbol] || {}),
-                      }}
-                      history={stockHistory[stock.symbol] || []}
-                      signal={stockSignals[stock.symbol]}
-                      onRemove={handleRemoveStock}
-                    />
+                   <StockCard
+                    key={stock.id}
+                    stock={{
+                      ...stock,
+                      ...(marketData[stock.symbol] || {}),
+                    }}
+                    history={stockHistory[stock.symbol] || []}
+                    signal={stockSignals[stock.symbol]}
+                    onRemove={handleRemoveStock}
+                    onClick={setSelectedStock}
+                  />
                   ))
                 }
 
@@ -549,13 +861,14 @@ async function handleRemoveStock(symbol) {
 /* Components */
 /* -------------------------------- */
 
-function NavItem({ icon, label, active = false }) {
+function NavItem({ icon, label, active, onClick }) {
   return (
     <button
+      onClick={onClick}
       className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
         active
-          ? "bg-gray-100 text-black"
-          : "text-gray-500 hover:bg-gray-50 hover:text-black"
+          ? "bg-green-50 text-green-700"
+          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
       }`}
     >
       {icon}
@@ -611,7 +924,7 @@ function MarketIndex({
 }
 
 
-function StockCard({ stock, history, signal, onRemove }) {
+function StockCard({ stock, history, signal, onRemove, onClick }) {
   const price = Number(stock.price || 0);
   const previousClose = Number(stock.previous_close || 0);
 
@@ -630,7 +943,10 @@ function StockCard({ stock, history, signal, onRemove }) {
   const formattedChange = `${positive ? "+" : ""}${change.toFixed(2)}%`;
 
   return (
-    <div className="group cursor-pointer rounded-xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-sm">
+    
+    <div 
+    onClick={() => onClick?.(stock.symbol)}
+    className="group cursor-pointer rounded-xl border border-gray-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-sm">
 
       <div className="flex items-start justify-between">
 

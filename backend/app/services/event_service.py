@@ -15,6 +15,8 @@ def create_market_event(
     average_volume: float,
     current_volatility: float,
     normal_volatility: float,
+    market_relative: float = 0.0,
+    sector_relative: float = 0.0,
 ):
     event_data = detect_market_event(
         symbol=symbol,
@@ -24,6 +26,8 @@ def create_market_event(
         average_volume=average_volume,
         current_volatility=current_volatility,
         normal_volatility=normal_volatility,
+        market_relative=market_relative,
+        sector_relative=sector_relative,
     )
 
     event = MarketEvent(

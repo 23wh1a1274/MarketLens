@@ -4,6 +4,7 @@ from app.models.watchlist_item import WatchlistItem
 from app.models.market_snapshot import MarketSnapshot
 from app.models.market_event import MarketEvent
 from app.models.user_event import UserEvent
+from app.models.portfolio import PortfolioHolding
 
 __all__ = [
     "User",
@@ -12,4 +13,5 @@ __all__ = [
     "MarketSnapshot",
     "MarketEvent",
     "UserEvent",
+    "PortfolioHolding",
 ]

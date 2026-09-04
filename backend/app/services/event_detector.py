@@ -4,6 +4,7 @@ from app.services.change_detection import (
     detect_price_change,
     detect_volume_anomaly,
     detect_volatility,
+    detect_relative_performance,
     calculate_change_score,
     get_event_severity,
 )
@@ -17,6 +18,8 @@ def detect_market_event(
     average_volume: float,
     current_volatility: float,
     normal_volatility: float,
+    market_relative: float = 0.0,
+    sector_relative: float = 0.0,
 ):
     price = detect_price_change(
     current_price,
@@ -34,10 +37,16 @@ def detect_market_event(
         normal_volatility,
     )
 
+    relative = detect_relative_performance(
+    market_relative,
+    sector_relative,
+    )
+
     score = calculate_change_score(
         price["severity"],
         volume["severity"],
         volatility["severity"],
+        relative["severity"],
     )
 
     severity = get_event_severity(score)
@@ -58,6 +67,8 @@ def detect_market_event(
         reasons.append(
             f"Volatility is {volatility['volatility_ratio']}x normal"
         )
+        
+    reasons.extend(relative["reasons"])
 
     return {
         "symbol": symbol,

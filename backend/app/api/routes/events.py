@@ -23,13 +23,29 @@ def get_events_since_last_check(
     if not user:
         return {"events": [], "last_seen_at": None}
 
-    query = db.query(MarketEvent)
+    watched_symbols = (
+        db.query(WatchlistItem.symbol)
+        .join(Watchlist, Watchlist.id == WatchlistItem.watchlist_id)
+        .filter(Watchlist.user_id == user.id)
+        .all()
+    )
+
+    symbols = [symbol[0] for symbol in watched_symbols]
+
+    if not symbols:
+        return {
+            "last_seen_at": user.last_seen_at,
+            "events": []
+        }
+
+    query = db.query(MarketEvent).filter(
+        MarketEvent.symbol.in_(symbols)
+    )
 
     if user.last_seen_at:
         query = query.filter(
             MarketEvent.timestamp > user.last_seen_at
         )
-
     events = (
         query
         .order_by(MarketEvent.timestamp.desc())
@@ -169,4 +185,86 @@ def get_latest_event(
         "score": float(event.score),
         "reasons": event.reasons,
         "timestamp": event.timestamp,
+    }
+
+@router.get("/stock/{symbol}")
+def get_stock_events(
+    symbol: str,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    symbol = symbol.strip().upper()
+
+    events = (
+        db.query(MarketEvent)
+        .filter(MarketEvent.symbol == symbol)
+        .order_by(MarketEvent.timestamp.desc())
+        .limit(20)
+        .all()
+    )
+
+    return [
+        {
+            "id": event.id,
+            "symbol": event.symbol,
+            "event_type": event.event_type,
+            "severity": event.severity,
+            "score": float(event.score),
+            "reasons": event.reasons,
+            "timestamp": event.timestamp,
+        }
+        for event in events
+    ]
+
+@router.get("/watchlist-health")
+def get_watchlist_health(
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    watched_symbols = (
+        db.query(WatchlistItem.symbol)
+        .join(
+            Watchlist,
+            Watchlist.id == WatchlistItem.watchlist_id,
+        )
+        .filter(Watchlist.user_id == user_id)
+        .all()
+    )
+
+    symbols = [symbol[0] for symbol in watched_symbols]
+
+    if not symbols:
+        return {
+            "total": 0,
+            "attention": 0,
+            "minor": 0,
+            "normal": 0,
+        }
+
+    attention = 0
+    minor = 0
+    normal = 0
+
+    for symbol in symbols:
+        event = (
+            db.query(MarketEvent)
+            .filter(MarketEvent.symbol == symbol)
+            .order_by(MarketEvent.timestamp.desc())
+            .first()
+        )
+
+        if not event:
+            normal += 1
+        elif float(event.score) >= 50:
+            attention += 1
+        elif float(event.score) >= 25:
+            minor += 1
+        else:
+            normal += 1
+
+    return {
+        "total": len(symbols),
+        "attention": attention,
+        "minor": minor,
+        "normal": normal,
     }
