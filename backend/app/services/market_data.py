@@ -1,5 +1,11 @@
 import yfinance as yf
 
+INDEX_SYMBOLS = {
+    "NIFTY 50": "^NSEI",
+    "SENSEX": "^BSESN",
+    "NIFTY IT": "^CNXIT",
+    "BANK NIFTY": "^NSEBANK",
+}
 
 def get_stock_snapshot(symbol: str):
     symbol = symbol.strip().upper()
@@ -64,3 +70,40 @@ def get_historical_snapshots(symbol: str, period: str = "1mo"):
         })
 
     return snapshots
+
+def get_market_indices():
+    results = []
+
+    for name, ticker_symbol in INDEX_SYMBOLS.items():
+        ticker = yf.Ticker(ticker_symbol)
+
+        history = ticker.history(period="2d", interval="1d")
+
+        if history.empty:
+            continue
+
+        latest = history.iloc[-1]
+
+        previous_close = None
+
+        if len(history) >= 2:
+            previous_close = float(history.iloc[-2]["Close"])
+
+        price = float(latest["Close"])
+
+        change = 0.0
+
+        if previous_close:
+            change = (
+                (price - previous_close)
+                / previous_close
+            ) * 100
+
+        results.append({
+            "name": name,
+            "value": round(price, 2),
+            "change": round(change, 2),
+            "positive": change >= 0,
+        })
+
+    return results

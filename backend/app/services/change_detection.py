@@ -151,6 +151,7 @@ def calculate_change_score(
     volume_severity: str,
     volatility_severity: str,
 ) -> float:
+
     severity_points = {
         "normal": 0,
         "minor": 25,
@@ -163,12 +164,13 @@ def calculate_change_score(
     volatility_score = severity_points.get(volatility_severity, 0)
 
     score = (
-        price_score * 0.40
-        + volume_score * 0.35
-        + volatility_score * 0.25
+        price_score * 0.50
+        + volume_score * 0.30
+        + volatility_score * 0.20
     )
 
     return round(min(score, 100), 2)
+
 
 def get_event_severity(score: float) -> str:
     if score >= 75:
@@ -179,3 +181,4 @@ def get_event_severity(score: float) -> str:
         return "minor"
     else:
         return "normal"
+

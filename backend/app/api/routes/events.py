@@ -73,6 +73,15 @@ def mark_events_seen(
     }
 
 
+def build_why_it_matters(event: MarketEvent) -> str:
+    if event.severity == "significant":
+        return "This stock has experienced a significant market change and deserves immediate attention."
+
+    if event.severity == "notable":
+        return "This stock has experienced a notable change compared with its normal market behavior."
+
+    return "This stock has shown a market change worth monitoring."
+
 @router.get("/attention")
 def get_attention_queue(
     db: Session = Depends(get_db),
@@ -115,16 +124,49 @@ def get_attention_queue(
 
     return {
         "events": [
-            {
-                "id": event.id,
-                "symbol": event.symbol,
-                "event_type": event.event_type,
-                "severity": event.severity,
-                "score": float(event.score),
-                "reasons": event.reasons,
-                "timestamp": event.timestamp,
-            }
+           {
+            "id": event.id,
+            "symbol": event.symbol,
+            "event_type": event.event_type,
+            "severity": event.severity,
+            "score": float(event.score),
+            "reasons": event.reasons,
+            "why_it_matters": build_why_it_matters(event),
+            "timestamp": event.timestamp,
+        }
             for event in events
         ],
         "count": len(events),
+    }
+
+@router.get("/latest/{symbol}")
+def get_latest_event(
+    symbol: str,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    symbol = symbol.strip().upper()
+
+    event = (
+        db.query(MarketEvent)
+        .filter(MarketEvent.symbol == symbol)
+        .order_by(MarketEvent.timestamp.desc())
+        .first()
+    )
+
+    if not event:
+        return {
+            "symbol": symbol,
+            "severity": "normal",
+            "score": 0,
+            "reasons": [],
+        }
+
+    return {
+        "id": event.id,
+        "symbol": event.symbol,
+        "severity": event.severity,
+        "score": float(event.score),
+        "reasons": event.reasons,
+        "timestamp": event.timestamp,
     }

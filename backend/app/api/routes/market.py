@@ -2,10 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.core.security import get_current_user
 from app.models.market_snapshot import MarketSnapshot
 from app.services.market_data import (
     get_stock_snapshot,
     get_historical_snapshots,
+    get_market_indices,
 )
 from app.services.market_analysis import (
     get_average_volume,
@@ -18,6 +20,52 @@ router = APIRouter(
     prefix="/api/market",
     tags=["Market Data"],
 )
+
+@router.get("/indices")
+def get_market_indices_data():
+    try:
+        return get_market_indices()
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch market indices: {str(e)}",
+        )
+
+@router.get("/snapshot/{symbol}")
+def get_snapshot(
+    symbol: str,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user),
+):
+    try:
+        return get_stock_snapshot(symbol)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/history/{symbol}")
+def get_stock_history(
+    symbol: str,
+    db: Session = Depends(get_db),
+):
+    symbol = symbol.strip().upper()
+
+    snapshots = (
+        db.query(MarketSnapshot)
+        .filter(MarketSnapshot.symbol == symbol)
+        .order_by(MarketSnapshot.timestamp.asc())
+        .limit(30)
+        .all()
+    )
+
+    return [
+        {
+            "timestamp": snapshot.timestamp,
+            "price": float(snapshot.price),
+            "volume": snapshot.volume,
+        }
+        for snapshot in snapshots
+    ]
 
 
 @router.get("/{symbol}")
@@ -59,6 +107,7 @@ def get_market_data(
             status_code=500,
             detail=f"Failed to fetch market data: {str(e)}",
         )
+
 
 @router.post("/{symbol}/analyze")
 def analyze_stock(
@@ -141,7 +190,9 @@ def analyze_stock(
         "reasons": event.reasons,
         "timestamp": event.timestamp,
     }
+
 @router.post("/{symbol}/sync")
+
 def sync_historical_data(
     symbol: str,
     db: Session = Depends(get_db),
@@ -199,3 +250,8 @@ def sync_historical_data(
             status_code=500,
             detail=f"Failed to sync historical data: {str(e)}",
         )
+
+
+
+
+
