@@ -19,9 +19,10 @@ def detect_market_event(
     normal_volatility: float,
 ):
     price = detect_price_change(
-        current_price,
-        previous_price,
-    )
+    current_price,
+    previous_price,
+    normal_volatility,
+)
 
     volume = detect_volume_anomaly(
         current_volume,

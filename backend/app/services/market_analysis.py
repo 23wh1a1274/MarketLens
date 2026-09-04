@@ -32,11 +32,7 @@ def get_average_volume(
     return sum(volumes) / len(volumes)
 
 
-def get_historical_prices(
-    db: Session,
-    symbol: str,
-    limit: int = 20,
-) -> list[float]:
+def get_historical_prices(db: Session, symbol: str, limit: int = 20) -> list[float]:
     snapshots = (
         db.query(MarketSnapshot)
         .filter(MarketSnapshot.symbol == symbol)
@@ -45,11 +41,7 @@ def get_historical_prices(
         .all()
     )
 
-    return [
-        float(snapshot.price)
-        for snapshot in reversed(snapshots)
-    ]
-
+    return [float(snapshot.price) for snapshot in reversed(snapshots)]
 
 def calculate_historical_volatility(
     prices: list[float],

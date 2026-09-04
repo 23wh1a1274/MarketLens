@@ -3,7 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.models.market_snapshot import MarketSnapshot
-from app.services.market_data import get_stock_snapshot
+from app.services.market_data import (
+    get_stock_snapshot,
+    get_historical_snapshots,
+)
 from app.services.market_analysis import (
     get_average_volume,
     get_historical_prices,
@@ -72,14 +75,27 @@ def analyze_stock(
         .all()
     )
 
-    if len(snapshots) < 2:
+    if len(snapshots) < 6:
         raise HTTPException(
             status_code=400,
-            detail="Not enough snapshots to analyze this stock",
+            detail="Not enough historical data for analysis",
         )
 
     current = snapshots[0]
-    previous = snapshots[1]
+
+    # Find the most recent snapshot with a different timestamp/day
+    previous = None
+
+    for snapshot in snapshots[1:]:
+        if snapshot.timestamp.date() != current.timestamp.date():
+            previous = snapshot
+            break
+
+    if previous is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Not enough previous trading-day data",
+        )
 
     average_volume = get_average_volume(
         db,
@@ -89,17 +105,19 @@ def analyze_stock(
 
     # Temporary volatility values.
     # We'll replace these with calculated historical volatility next.
-    prices = get_historical_prices(
-    db,
-    symbol,
-    limit=20,
-    )
+    prices = get_historical_prices(db, symbol, limit=20)
 
-    current_volatility = calculate_historical_volatility(
-        prices
-    )
+    if len(prices) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail="Not enough historical data for volatility analysis",
+        )
 
-    normal_volatility = current_volatility
+    recent_prices = prices[-5:]
+    historical_prices = prices
+
+    current_volatility = calculate_historical_volatility(recent_prices)
+    normal_volatility = calculate_historical_volatility(historical_prices)
 
     event = create_market_event(
         db=db,
@@ -123,3 +141,61 @@ def analyze_stock(
         "reasons": event.reasons,
         "timestamp": event.timestamp,
     }
+@router.post("/{symbol}/sync")
+def sync_historical_data(
+    symbol: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        snapshots = get_historical_snapshots(symbol)
+
+        inserted = 0
+
+        for data in snapshots:
+            existing = (
+                db.query(MarketSnapshot)
+                .filter(
+                    MarketSnapshot.symbol == data["symbol"],
+                    MarketSnapshot.timestamp == data["timestamp"],
+                )
+                .first()
+            )
+
+            if existing:
+                continue
+
+            snapshot = MarketSnapshot(
+                symbol=data["symbol"],
+                price=data["price"],
+                open=data["open"],
+                high=data["high"],
+                low=data["low"],
+                previous_close=data["previous_close"],
+                volume=data["volume"],
+                timestamp=data["timestamp"],
+                source=data["source"],
+            )
+
+            db.add(snapshot)
+            inserted += 1
+
+        db.commit()
+
+        return {
+            "symbol": symbol.upper(),
+            "inserted": inserted,
+            "message": "Historical data synced successfully",
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to sync historical data: {str(e)}",
+        )

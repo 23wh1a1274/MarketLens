@@ -17,6 +17,7 @@ def calculate_price_change(
 def detect_price_change(
     current_price: Decimal,
     previous_price: Decimal,
+    normal_volatility: float = 0.0,
 ) -> dict:
     change_percent = calculate_price_change(
         current_price,
@@ -25,14 +26,29 @@ def detect_price_change(
 
     absolute_change = abs(change_percent)
 
-    if absolute_change >= 5:
-        severity = "significant"
-    elif absolute_change >= 3:
-        severity = "notable"
-    elif absolute_change >= 1:
-        severity = "minor"
+    # If we have historical volatility, use it as the baseline.
+    if normal_volatility > 0:
+        volatility_ratio = absolute_change / normal_volatility
+
+        if volatility_ratio >= 3:
+            severity = "significant"
+        elif volatility_ratio >= 2:
+            severity = "notable"
+        elif volatility_ratio >= 1:
+            severity = "minor"
+        else:
+            severity = "normal"
+
     else:
-        severity = "normal"
+        # Fallback when historical volatility is unavailable.
+        if absolute_change >= 5:
+            severity = "significant"
+        elif absolute_change >= 3:
+            severity = "notable"
+        elif absolute_change >= 1:
+            severity = "minor"
+        else:
+            severity = "normal"
 
     if change_percent > 0:
         direction = "up"
@@ -46,6 +62,7 @@ def detect_price_change(
         "direction": direction,
         "severity": severity,
     }
+
 
 def calculate_volume_ratio(
     current_volume: int,
@@ -137,18 +154,21 @@ def calculate_change_score(
     severity_points = {
         "normal": 0,
         "minor": 25,
-        "notable": 50,
-        "significant": 75,
+        "notable": 60,
+        "significant": 100,
     }
 
-    scores = [
-        severity_points.get(price_severity, 0),
-        severity_points.get(volume_severity, 0),
-        severity_points.get(volatility_severity, 0),
-    ]
+    price_score = severity_points.get(price_severity, 0)
+    volume_score = severity_points.get(volume_severity, 0)
+    volatility_score = severity_points.get(volatility_severity, 0)
 
-    return round(sum(scores) / len(scores), 2)
+    score = (
+        price_score * 0.40
+        + volume_score * 0.35
+        + volatility_score * 0.25
+    )
 
+    return round(min(score, 100), 2)
 
 def get_event_severity(score: float) -> str:
     if score >= 75:
