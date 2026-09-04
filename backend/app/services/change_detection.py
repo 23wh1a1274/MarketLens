@@ -1,3 +1,4 @@
+import statistics
 from decimal import Decimal
 
 
@@ -78,4 +79,52 @@ def detect_volume_anomaly(
         "volume_ratio": round(volume_ratio, 2),
         "severity": severity,
         "is_anomaly": volume_ratio >= 1.5,
+    }
+def calculate_volatility(prices: list[float]) -> float:
+    if len(prices) < 2:
+        return 0.0
+
+    returns = []
+
+    for i in range(1, len(prices)):
+        previous = prices[i - 1]
+
+        if previous == 0:
+            continue
+
+        daily_return = ((prices[i] - previous) / previous) * 100
+        returns.append(daily_return)
+
+    if len(returns) < 2:
+        return 0.0
+
+    return statistics.stdev(returns)
+
+
+def detect_volatility(
+    current_volatility: float,
+    normal_volatility: float,
+) -> dict:
+    if normal_volatility <= 0:
+        return {
+            "volatility_ratio": 0.0,
+            "severity": "normal",
+            "is_anomaly": False,
+        }
+
+    ratio = current_volatility / normal_volatility
+
+    if ratio >= 3:
+        severity = "significant"
+    elif ratio >= 2:
+        severity = "notable"
+    elif ratio >= 1.5:
+        severity = "minor"
+    else:
+        severity = "normal"
+
+    return {
+        "volatility_ratio": round(ratio, 2),
+        "severity": severity,
+        "is_anomaly": ratio >= 1.5,
     }
