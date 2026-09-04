@@ -45,3 +45,37 @@ def detect_price_change(
         "direction": direction,
         "severity": severity,
     }
+
+def calculate_volume_ratio(
+    current_volume: int,
+    average_volume: float,
+) -> float:
+    if average_volume <= 0:
+        return 0.0
+
+    return current_volume / average_volume
+
+
+def detect_volume_anomaly(
+    current_volume: int,
+    average_volume: float,
+) -> dict:
+    volume_ratio = calculate_volume_ratio(
+        current_volume,
+        average_volume,
+    )
+
+    if volume_ratio >= 3:
+        severity = "significant"
+    elif volume_ratio >= 2:
+        severity = "notable"
+    elif volume_ratio >= 1.5:
+        severity = "minor"
+    else:
+        severity = "normal"
+
+    return {
+        "volume_ratio": round(volume_ratio, 2),
+        "severity": severity,
+        "is_anomaly": volume_ratio >= 1.5,
+    }
